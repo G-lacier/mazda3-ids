@@ -469,6 +469,7 @@ class IDSContext(object):
         self.__context = context
 
     def datatypes(self):
+        """Return the list of datatypes defined in the IDS dataset."""
         if not self.__datatypes:
             self.__datatypes = {}
             data_dir = os.path.join(self.__context.root, 'Data')
@@ -477,9 +478,8 @@ class IDSContext(object):
                 msg = "DataTypes.xml file not found %s" % datatypes_file
                 raise ValueError(msg)
 
-            file = open_xml(datatypes_file)
-            try:
-                i = 0
+            i = 0
+            with open_xml(datatypes_file) as file:
                 for event, elem in iterparse(file):
                     if event == 'start':
                         if elem.tag == 'm':
@@ -495,104 +495,102 @@ class IDSContext(object):
                             type.attributes().update(attributes)
                             self.__datatypes[i] = type
                             i += 1
-            finally:
-                file.close()
 
         return self.__datatypes
 
     def datatypes_by_name(self):
         return dict((data.name(), data) for data in self.datatypes().values())
 
-    def _load_rec(self, name, create_obj, set_array, set_qualifications):
+    def _load_values(self, name, create_obj):
+        """Load object values from the corresponding XML file."""
         records = {}
-
         cs_file = os.path.join(
             os.path.join(self.__context.root, 'Data'),
             'values_%s.xml' % name,
         )
-        if os.path.isfile(cs_file):
-            file = open_xml(cs_file)
-            try:
-                for event, elem in iterparse(file):
-                    if event == 'end':
-                        if elem.tag == 'm':
-                            try:
-                                value = create_obj(name, elem)
-                                d = elem.attrib['d']
-                                i = elem.attrib['i']
-                                records[IDSKey(d, i)] = value
-                            except KeyError:
-                                print_xml_error("Issue parsing", elem)
-            finally:
-                file.close()
-        else:
+        if not os.path.isfile(cs_file):
             msg = "values_%s.xml file not found %s" % (name, cs_file)
             print_error(msg)
+            return records
 
+        with open_xml(cs_file) as file:
+            for event, elem in iterparse(file):
+                if event == 'end' and elem.tag == 'm':
+                    try:
+                        value = create_obj(name, elem)
+                        d = elem.attrib['d']
+                        i = elem.attrib['i']
+                        records[IDSKey(d, i)] = value
+                    except KeyError:
+                        print_xml_error("Issue parsing", elem)
+        return records
+
+    def _load_arrays(self, name, set_array, records):
+        """Populate array values for records."""
         cs_file = os.path.join(
             os.path.join(self.__context.root, 'Data'),
             'Arrays_%s.xml' % name,
         )
-        if os.path.isfile(cs_file):
-            file = open_xml(cs_file)
-            try:
-                for event, elem in iterparse(file):
-                    if event == 'start':
-                        if elem.tag == 'z':
-                            values = []
-                        elif elem.tag == 'a':
-                            f = elem
-                    elif event == 'end':
-                        if elem.tag == 'm':
-                            try:
-                                value = elem.attrib['e']
-                                values.append(value)
-                            except KeyError:
-                                print_xml_error("Issue parsing", elem)
-                        elif elem.tag == 'z':
-                            try:
-                                d = elem.attrib['d']
-                                n = elem.attrib['n']
-                                set_array(records[IDSKey(d, n)], f, values)
-                            except KeyError:
-                                print_xml_error("Issue parsing", elem)
+        if not os.path.isfile(cs_file):
+            return
 
-            finally:
-                file.close()
+        with open_xml(cs_file) as file:
+            for event, elem in iterparse(file):
+                if event == 'start':
+                    if elem.tag == 'z':
+                        values = []
+                    elif elem.tag == 'a':
+                        f = elem
+                elif event == 'end':
+                    if elem.tag == 'm':
+                        try:
+                            value = elem.attrib['e']
+                            values.append(value)
+                        except KeyError:
+                            print_xml_error("Issue parsing", elem)
+                    elif elem.tag == 'z':
+                        try:
+                            d = elem.attrib['d']
+                            n = elem.attrib['n']
+                            set_array(records[IDSKey(d, n)], f, values)
+                        except KeyError:
+                            print_xml_error("Issue parsing", elem)
 
+    def _load_qualifications(self, name, set_qualifications, records):
+        """Attach qualifications to existing records."""
         cs_file = os.path.join(
             os.path.join(self.__context.root, 'Data'),
             'Qualifications_QT_%s.xml' % name,
         )
-        if os.path.isfile(cs_file):
-            file = open_xml(cs_file)
-            try:
-                for event, elem in iterparse(file):
+        if not os.path.isfile(cs_file):
+            return
 
-                    if event == 'start':
-                        if elem.tag == 'm':
-                            d = elem.attrib['d']
-                        elif elem.tag == 'n':
-                            n = elem.attrib['n']
-                            values = []
+        with open_xml(cs_file) as file:
+            for event, elem in iterparse(file):
+                if event == 'start':
+                    if elem.tag == 'm':
+                        d = elem.attrib['d']
+                    elif elem.tag == 'n':
+                        n = elem.attrib['n']
+                        values = []
+                elif event == 'end':
+                    if elem.tag == 'c':
+                        try:
+                            value = elem.attrib['c']
+                            values.append(value)
+                        except KeyError:
+                            print_xml_error("Issue parsing", elem)
+                    elif elem.tag == 'n':
+                        try:
+                            key = IDSKey(d, n)
+                            set_qualifications(records[key], values)
+                        except KeyError:
+                            print_xml_error("Issue parsing", elem)
 
-                    elif event == 'end':
-                        if elem.tag == 'c':
-                            try:
-                                value = elem.attrib['c']
-                                values.append(value)
-                            except KeyError:
-                                print_xml_error("Issue parsing", elem)
-                        elif elem.tag == 'n':
-                            try:
-                                key = IDSKey(d, n)
-                                set_qualifications(records[key], values)
-                            except KeyError:
-                                print_xml_error("Issue parsing", elem)
-
-            finally:
-                file.close()
-
+    def _load_rec(self, name, create_obj, set_array, set_qualifications):
+        records = self._load_values(name, create_obj)
+        self._load_arrays(name, set_array, records)
+        self._load_qualifications(name, set_qualifications, records)
         return records
 
     def load_rec(self, name):
@@ -624,28 +622,19 @@ class IDSContext(object):
                 msg = "vehicle_1.xml file not found %s" % vehicle_1_file
                 raise ValueError(msg)
 
-            file = open_xml(vehicle_file)
-            try:
+            with open_xml(vehicle_file) as file:
                 for event, elem in iterparse(file):
-                    if event == 'end':
-                        if elem.tag == 'm':
-                            qualifier = IDSQualifier.parse(elem)
-                            self.__qualifiers[qualifier.id()] = qualifier
-            finally:
-                file.close()
+                    if event == 'end' and elem.tag == 'm':
+                        qualifier = IDSQualifier.parse(elem)
+                        self.__qualifiers[qualifier.id()] = qualifier
 
-            file = open_xml(vehicle_1_file)
-            try:
+            with open_xml(vehicle_1_file) as file:
                 for event, elem in iterparse(file):
-                    if event == 'start':
-                        if elem.tag == 'm':
-                            qualifier = self.__qualifiers[elem.attrib['t']]
-                    elif event == 'end':
-                        if elem.tag == 'z':
-                            key = elem.attrib['v']
-                            qualifier.values()[key] = elem.attrib['m']
-            finally:
-                file.close()
+                    if event == 'start' and elem.tag == 'm':
+                        qualifier = self.__qualifiers[elem.attrib['t']]
+                    elif event == 'end' and elem.tag == 'z':
+                        key = elem.attrib['v']
+                        qualifier.values()[key] = elem.attrib['m']
 
         return self.__qualifiers
 
@@ -660,23 +649,19 @@ class IDSContext(object):
             for x in os.listdir(texts_dir):
                 text_file = os.path.join(texts_dir, x)
                 if os.path.isfile(text_file):
-                    file = open_xml(text_file)
-                    try:
+                    with open_xml(text_file) as file:
                         for event, elem in iterparse(file):
                             try:
-                                if event == 'start':
-                                    if elem.tag == 'tm':
-                                        name = elem.attrib['id']
-                                elif event == 'end':
-                                    if (
-                                        elem.tag == 'tu'
-                                        and elem.nsmap['lang'] == lang
-                                    ):
-                                        self.__texts[name] = elem.text
+                                if event == 'start' and elem.tag == 'tm':
+                                    name = elem.attrib['id']
+                                elif (
+                                    event == 'end'
+                                    and elem.tag == 'tu'
+                                    and elem.nsmap['lang'] == lang
+                                ):
+                                    self.__texts[name] = elem.text
                             except KeyError:
                                 print_xml_error("Issue parsing", elem)
-                    finally:
-                        file.close()
         return self.__texts
 
     def vehicles(self):
@@ -690,15 +675,11 @@ class IDSContext(object):
                 msg = "vehicle_2.xml file not found %s" % vehicle_file
                 raise ValueError(msg)
 
-            file = open_xml(vehicle_file)
-            try:
+            with open_xml(vehicle_file) as file:
                 for event, elem in iterparse(file):
-                    if event == 'end':
-                        if elem.tag == 'm':
-                            vehicle = IDSVehicle.parse(elem)
-                            self.__vehicles[vehicle.id()] = vehicle
-            finally:
-                file.close()
+                    if event == 'end' and elem.tag == 'm':
+                        vehicle = IDSVehicle.parse(elem)
+                        self.__vehicles[vehicle.id()] = vehicle
 
         return self.__vehicles
 
@@ -713,8 +694,7 @@ class IDSContext(object):
                 msg = "MCPRW_XMLFile.xml file not found %s" % mcprw_file
                 raise ValueError(msg)
 
-            file = open_xml(mcprw_file, encoding='utf-8-sig')
-            try:
+            with open_xml(mcprw_file, encoding='utf-8-sig') as file:
                 for event, elem in iterparse(
                     file,
                     encoding='utf-8',
@@ -739,10 +719,6 @@ class IDSContext(object):
                             f = IDSXMLFile.parse(elem)
                             vehicle.files()[f.id()] = f
 
-
-            finally:
-                file.close()
-
         return self.__modules
 
     def mnemonics(self):
@@ -760,14 +736,10 @@ class IDSContext(object):
                 )
                 raise ValueError(msg)
 
-            file = open_xml(mnemonics_file)
-            try:
+            with open_xml(mnemonics_file) as file:
                 for event, elem in iterparse(file):
-                    if event == 'end':
-                        if elem.tag == 'd':
-                            self.__mnemonics[elem.attrib['m']] = Mnemonic.parse(elem)
-            finally:
-                file.close()
+                    if event == 'end' and elem.tag == 'd':
+                        self.__mnemonics[elem.attrib['m']] = Mnemonic.parse(elem)
 
         return self.__mnemonics
 
@@ -1027,28 +999,3 @@ def browse(ctx, obj):
         print('')
 
 
-#
-## PEP
-#
-
-def main(argv):
-    parser = argparse.ArgumentParser(prog=sys.argv[0], description="IDS")
-    parser.add_argument('--lang', action='store', default="ENG", help="Default language")
-    parser.add_argument('root')
-    args = parser.parse_args(argv[1:])
-
-    ids = IDSContext(args)
-
-    # Preload strings
-    ids.mnemonics()
-    ids.texts()
-
-    # cs = ids.vehicles()
-    # obj = cs[IDSKey('8394714383', '8394714383')]
-    cs = ids.load_rec('MCP_FILE_INFO_REC')
-    obj = cs[IDSKey('PSR8-188K2-B', 'PSR8-188K2-B')]
-    browse(ids, obj)
-
-
-if __name__ == '__main__':
-    main(sys.argv)

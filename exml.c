@@ -37,8 +37,17 @@ int main(int argc, char *argv[]) {
         return -1;
     }
     FILE *file = fopen(argv[1], "rb");
+    if (!file) {
+        perror("fopen");
+        return 1;
+    }
     long int file_size = get_file_size(file);
     char *content = (char *) malloc(file_size);
+    if (!content) {
+        perror("malloc");
+        fclose(file);
+        return 1;
+    }
     fread(content, 1, file_size, file);
     fclose(file);
 

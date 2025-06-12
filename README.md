@@ -17,11 +17,32 @@ This requires a C compiler and OpenSSL development libraries.
 After building, you can invoke the parser with Python:
 
 ```sh
-python ids.py /path/to/IDS/root
+python ids_cli.py /path/to/IDS/root
 ```
 
 The tool expects the IDS data directory as the only argument and will print
 information extracted from the dataset.
+
+### Example dataset layout
+
+```
+/path/to/IDS/root/
+├── Data
+│   ├── DataTypes.xml
+│   ├── vehicle.xml
+│   └── ...
+└── XMLFiles
+    └── Text
+        └── ENG.xml
+```
+
+## Environment Setup
+
+Install Python dependencies using `requirements.txt`:
+
+```sh
+pip install -r requirements.txt
+```
 
 ## Tests
 
@@ -30,5 +51,3 @@ Basic unit tests can be executed with:
 ```sh
 python -m unittest discover tests
 ```
-
-

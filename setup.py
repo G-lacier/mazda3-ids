@@ -13,7 +13,7 @@ setup(
     version='1.0',
     description='IDS',
     author='Yann Diorcet',
-    py_modules=['ids'],
+    py_modules=['ids', 'ids_cli'],
     install_requires=[
         'termcolor',
         proxy,
