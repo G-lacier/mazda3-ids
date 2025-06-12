@@ -36,14 +36,34 @@ int main(int argc, char *argv[]) {
         return -1;
     }
     FILE *password_file = fopen(argv[1], "rb");
+    if (!password_file) {
+        perror("fopen password");
+        return 1;
+    }
     long int password_size = get_file_size(password_file);
     char *password = (char *) malloc(password_size);
+    if (!password) {
+        perror("malloc password");
+        fclose(password_file);
+        return 1;
+    }
     fread(password, 1, password_size, password_file);
     fclose(password_file);
 
     FILE *file = fopen(argv[2], "rb");
+    if (!file) {
+        perror("fopen input");
+        TRY_FREE(password);
+        return 1;
+    }
     long int file_size = get_file_size(file);
     char *content = (char *) malloc(file_size);
+    if (!content) {
+        perror("malloc content");
+        fclose(file);
+        TRY_FREE(password);
+        return 1;
+    }
     fread(content, 1, file_size, file);
     fclose(file);
 
@@ -56,8 +76,21 @@ int main(int argc, char *argv[]) {
     memset(salt, '\0', 8);
     RAND_bytes(salt, 8);
     char *key = (char *) malloc(32);
+    if (!key) {
+        perror("malloc key");
+        TRY_FREE(password);
+        TRY_FREE(content);
+        return 1;
+    }
     memset(key, '\0', 32);
     char *iv = (char *) malloc(16);
+    if (!iv) {
+        perror("malloc iv");
+        TRY_FREE(password);
+        TRY_FREE(content);
+        TRY_FREE(key);
+        return 1;
+    }
     memset(iv, '\0', 16);
     char *out = NULL;
     EVP_CHECK(EVP_BytesToKey(cipher, md, salt, password, password_size, 1, key, iv), 24);
@@ -67,6 +100,14 @@ int main(int argc, char *argv[]) {
 
     int outl;
     out = (char *) malloc(file_size + ctxbz);
+    if (!out) {
+        perror("malloc out");
+        TRY_FREE(password);
+        TRY_FREE(content);
+        TRY_FREE(key);
+        TRY_FREE(iv);
+        return 1;
+    }
     EVP_CHECK(EVP_EncryptUpdate(&ctx, out, &outl, content, file_size), 1);
 
     int outl2;

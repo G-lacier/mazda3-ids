@@ -30,6 +30,10 @@ int main(int argc, char *argv[]) {
     SetDllDirectory(argv[1]);
 
     FILE *password_file = fopen(argv[2], "wb");
+    if (password_file == NULL) {
+        fprintf(stderr, "Unable to open output file\n");
+        return 1;
+    }
 
     HMODULE dllHandle = LoadLibrary("Fnpss.dll");
     if (dllHandle == NULL) {

@@ -64,7 +64,7 @@ function unzip_file() {
   unzip "${3}" -d "${cdir}" > /dev/null
 }
 
-find "${1}" -type f -exec sh -c "head -c 8 '{}' | grep Salted__ > /dev/null 2>&1" \; -print0 |
+find "${1}" -type f -exec sh -c "head -c 8 '\''{}'\'' | grep Salted__ > /dev/null 2>&1" \; -print0 |
   while IFS= read -r -d $'\0' line; do
     decrypt "${1}" "${2}" "${line}" "${key}"
   done
@@ -84,7 +84,7 @@ if [ $? -ne 0 ]; then
   echo "Fnpss.dll not found"
   exit 1
 fi
-echo "Fnpss.dll    ${fnpssll}"
+echo "Fnpss.dll    ${fnpssdll}"
 echo "Seeking for fnpss.ds ..."
 fnpss=$(find "${1}" -name fnpss.ds)
 if [ $? -ne 0 ]; then
