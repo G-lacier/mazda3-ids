@@ -16,8 +16,7 @@
 # Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
 
-# Fix Python 2.x.
-from __future__ import print_function
+"""Utilities for working with Mazda IDS XML data."""
 
 __author__ = "Yann Diorcet"
 __license__ = "GPL"
@@ -40,29 +39,9 @@ try:
 except ImportError:
     from objproxies import ObjectWrapper
 
-# Fix Python 2.x.
-try:
-    input = raw_input
-except NameError:
-    input = input
-
-try:
-    unicode = unicode
-except NameError:
-    # 'unicode' is undefined, must be Python 3
-    str = str
-    unicode = str
-    bytes = bytes
-    basestring = (str, bytes)
-else:
-    # 'unicode' exists, must be Python 2
-    str = str
-    unicode = unicode
-    bytes = str
-    basestring = basestring
-
 
 class IDSQualifier(object):
+    """Qualifiers attach additional values to IDS objects."""
     @classmethod
     def parse(cls, elem):
         id = elem.attrib['m']
@@ -84,11 +63,10 @@ class IDSQualifier(object):
         return self.__values
 
 
-#
-## IDS Objects
-#
+# IDS Objects
 
 class IDSXMLFile(object):
+    """Representation of an XML file entry declared in the IDS metadata."""
     @classmethod
     def parse(cls, elem):
         name = elem.attrib['xmlType']
@@ -125,7 +103,8 @@ class IDSXMLFile(object):
 
 
 class IDSXMLVehicle(object):
-    CODE_REG = re.compile('\(([^\(\)]+) ([^\(\)]+)\)')
+    """Vehicle description and associated qualifiers defined in IDS."""
+    CODE_REG = re.compile(r'\(([^()]+) ([^()]+)\)')
 
     def code_key(txt):
         return [x for x, y in IDSXMLVehicle.CODE_REG.findall(txt)]
@@ -133,15 +112,21 @@ class IDSXMLVehicle(object):
     def code_value(txt):
         return [y for x, y in IDSXMLVehicle.CODE_REG.findall(txt)]
 
-    XML_MAPPINGS = {'CM_PROJECT': 'CM_Project', 'model': 'CM_MODEL', 'type': 'CM_ENGINE_TYPE',
-                    'subtype': 'CM_ENGINE_SUB_TYPE', 'year': 'CM_YEAR_BREAKPOINT', 'code': (code_key, code_value)}
+    XML_MAPPINGS = {
+        'CM_PROJECT': 'CM_Project',
+        'model': 'CM_MODEL',
+        'type': 'CM_ENGINE_TYPE',
+        'subtype': 'CM_ENGINE_SUB_TYPE',
+        'year': 'CM_YEAR_BREAKPOINT',
+        'code': (code_key, code_value),
+    }
 
     @classmethod
     def parse(cls, elem):
         attributes = {}
         for key1, key2 in cls.XML_MAPPINGS.items():
             if key1 in elem.attrib:
-                if not isinstance(key2, basestring):
+                if not isinstance(key2, str):
                     (get_key, get_value) = key2
                     keys = get_key(elem.attrib[key1])
                     values = get_value(elem.attrib[key1])
@@ -161,7 +146,10 @@ class IDSXMLVehicle(object):
         self.__files = {}
 
     def base(self):
-        return 'CM_BASE' in self.__qualifiers and 'BASE' == self.__qualifiers['CM_BASE']
+        return (
+            'CM_BASE' in self.__qualifiers
+            and self.__qualifiers['CM_BASE'] == 'BASE'
+        )
 
     def qualifiers(self):
         return self.__qualifiers
@@ -179,6 +167,7 @@ class IDSXMLVehicle(object):
 
 
 class IDSXMLModule(object):
+    """IDS module entry grouping vehicles and related data."""
     @classmethod
     def parse(cls, elem):
         name = elem.attrib['dataName']
@@ -213,7 +202,11 @@ class IDSVehicle(object):
     def parse(cls, elem):
         n = elem.attrib['n']
         s = elem.attrib['s']
-        qualifiers = dict([(k, elem.attrib[k]) for k in elem.attrib if k not in ('n', 's')])
+        qualifiers = {
+            k: elem.attrib[k]
+            for k in elem.attrib
+            if k not in ('n', 's')
+        }
         return IDSVehicle(n, s, qualifiers)
 
     def __init__(self, n, s, qualifiers):
@@ -295,7 +288,7 @@ class IDSType(object):
 
 
 class IDSKey(object):
-    STRING_KEY = re.compile('\[(.*)\]\[(.*)\]')
+    STRING_KEY = re.compile(r'\[(.*)\]\[(.*)\]')
 
     def __init__(self, a, b=None):
         super(IDSKey, self).__init__()
@@ -406,13 +399,16 @@ class Mnemonic(object):
         return '%s' % (self.__value)
 
 
-#
-## XML
-#
+# XML
 
 class XMLIO(ObjectWrapper):
-    XML_ILLEGAL = [chr(a) for a in
-                   itertools.chain(itertools.chain(range(0x0, 0x09), range(0xb, 0xd)), range(0xe, 0x20))]
+    XML_ILLEGAL = [
+        chr(a)
+        for a in itertools.chain(
+            itertools.chain(range(0x0, 0x09), range(0xb, 0xd)),
+            range(0xe, 0x20),
+        )
+    ]
     __proxy = None
 
     def __init__(self, ob, encoding='utf-8'):
@@ -432,7 +428,8 @@ def print_error(txt):
 
 
 def print_xml_error(txt, elem):
-    print_error("%s %s" % (txt, ET.tostring(elem, encoding='utf-8').decode('utf-8').strip()))
+    err = ET.tostring(elem, encoding='utf-8').decode('utf-8').strip()
+    print_error("%s %s" % (txt, err))
 
 
 def open_xml(filename, encoding='iso-8859-1'):
@@ -444,11 +441,21 @@ def iterparse(file, encoding='utf-8', wrapper=True, recover=True):
         source = XMLIO(file, encoding=encoding)
     else:
         source = file
-    # return ET.iterparse(source, events=('start', 'end'), parser = ET.XMLParser(target=ET.TreeBuilder(), encoding='utf-8'))
-    return ET.iterparse(source, events=('start', 'end'), encoding=encoding, recover=recover)
+    # return ET.iterparse(
+    #     source,
+    #     events=('start', 'end'),
+    #     parser=ET.XMLParser(target=ET.TreeBuilder(), encoding='utf-8'),
+    # )
+    return ET.iterparse(
+        source,
+        events=('start', 'end'),
+        encoding=encoding,
+        recover=recover,
+    )
 
 
 class IDSContext(object):
+    """High level access to IDS data stored in a directory tree."""
     def __init__(self, context):
         super(IDSContext, self).__init__()
 
@@ -464,9 +471,11 @@ class IDSContext(object):
     def datatypes(self):
         if not self.__datatypes:
             self.__datatypes = {}
-            datatypes_file = os.path.join(os.path.join(self.__context.root, 'Data'), 'DataTypes.xml')
+            data_dir = os.path.join(self.__context.root, 'Data')
+            datatypes_file = os.path.join(data_dir, 'DataTypes.xml')
             if not os.path.isfile(datatypes_file):
-                raise ValueError("DataTypes.xml file not found %s" % (datatypes_file))
+                msg = "DataTypes.xml file not found %s" % datatypes_file
+                raise ValueError(msg)
 
             file = open_xml(datatypes_file)
             try:
@@ -497,7 +506,10 @@ class IDSContext(object):
     def _load_rec(self, name, create_obj, set_array, set_qualifications):
         records = {}
 
-        cs_file = os.path.join(os.path.join(self.__context.root, 'Data'), 'values_%s.xml' % (name))
+        cs_file = os.path.join(
+            os.path.join(self.__context.root, 'Data'),
+            'values_%s.xml' % name,
+        )
         if os.path.isfile(cs_file):
             file = open_xml(cs_file)
             try:
@@ -509,14 +521,18 @@ class IDSContext(object):
                                 d = elem.attrib['d']
                                 i = elem.attrib['i']
                                 records[IDSKey(d, i)] = value
-                            except KeyError as e:
+                            except KeyError:
                                 print_xml_error("Issue parsing", elem)
             finally:
                 file.close()
         else:
-            print_error("values_%s.xml file not found %s" % (name, cs_file))
+            msg = "values_%s.xml file not found %s" % (name, cs_file)
+            print_error(msg)
 
-        cs_file = os.path.join(os.path.join(self.__context.root, 'Data'), 'Arrays_%s.xml' % (name))
+        cs_file = os.path.join(
+            os.path.join(self.__context.root, 'Data'),
+            'Arrays_%s.xml' % name,
+        )
         if os.path.isfile(cs_file):
             file = open_xml(cs_file)
             try:
@@ -531,20 +547,23 @@ class IDSContext(object):
                             try:
                                 value = elem.attrib['e']
                                 values.append(value)
-                            except KeyError as e:
+                            except KeyError:
                                 print_xml_error("Issue parsing", elem)
                         elif elem.tag == 'z':
                             try:
                                 d = elem.attrib['d']
                                 n = elem.attrib['n']
                                 set_array(records[IDSKey(d, n)], f, values)
-                            except KeyError as e:
+                            except KeyError:
                                 print_xml_error("Issue parsing", elem)
 
             finally:
                 file.close()
 
-        cs_file = os.path.join(os.path.join(self.__context.root, 'Data'), 'Qualifications_QT_%s.xml' % (name))
+        cs_file = os.path.join(
+            os.path.join(self.__context.root, 'Data'),
+            'Qualifications_QT_%s.xml' % name,
+        )
         if os.path.isfile(cs_file):
             file = open_xml(cs_file)
             try:
@@ -562,12 +581,13 @@ class IDSContext(object):
                             try:
                                 value = elem.attrib['c']
                                 values.append(value)
-                            except KeyError as e:
+                            except KeyError:
                                 print_xml_error("Issue parsing", elem)
                         elif elem.tag == 'n':
                             try:
-                                set_qualifications(records[IDSKey(d, n)], values)
-                            except KeyError as e:
+                                key = IDSKey(d, n)
+                                set_qualifications(records[key], values)
+                            except KeyError:
                                 print_xml_error("Issue parsing", elem)
 
             finally:
@@ -583,18 +603,26 @@ class IDSContext(object):
             def set_qualifications(parent, qualifications):
                 parent.qualifications().extend(qualifications)
 
-            self.__cache[name] = self._load_rec(name, IDSObject.parse, IDSObject.parse_attribute, set_qualifications)
+            self.__cache[name] = self._load_rec(
+                name,
+                IDSObject.parse,
+                IDSObject.parse_attribute,
+                set_qualifications,
+            )
         return self.__cache[name]
 
     def qualifiers(self):
-        if self.__qualifiers == None:
+        if self.__qualifiers is None:
             self.__qualifiers = {}
-            vehicle_file = os.path.join(os.path.join(self.__context.root, 'Data'), 'vehicle.xml')
+            data_dir = os.path.join(self.__context.root, 'Data')
+            vehicle_file = os.path.join(data_dir, 'vehicle.xml')
             if not os.path.isfile(vehicle_file):
-                raise ValueError("vehicle.xml file not found %s" % (vehicle_file))
-            vehicle_1_file = os.path.join(os.path.join(self.__context.root, 'Data'), 'vehicle_1.xml')
+                msg = "vehicle.xml file not found %s" % vehicle_file
+                raise ValueError(msg)
+            vehicle_1_file = os.path.join(data_dir, 'vehicle_1.xml')
             if not os.path.isfile(vehicle_1_file):
-                raise ValueError("vehicle_1.xml file not found %s" % (vehicle_1_file))
+                msg = "vehicle_1.xml file not found %s" % vehicle_1_file
+                raise ValueError(msg)
 
             file = open_xml(vehicle_file)
             try:
@@ -614,17 +642,21 @@ class IDSContext(object):
                             qualifier = self.__qualifiers[elem.attrib['t']]
                     elif event == 'end':
                         if elem.tag == 'z':
-                            qualifier.values()[elem.attrib['v']] = elem.attrib['m']
+                            key = elem.attrib['v']
+                            qualifier.values()[key] = elem.attrib['m']
             finally:
                 file.close()
 
         return self.__qualifiers
 
     def texts(self):
-        if self.__texts == None:
+        if self.__texts is None:
             self.__texts = {}
             lang = self.__context.lang.lower()
-            texts_dir = os.path.join(os.path.join(self.__context.root, 'XMLFiles'), 'Text')
+            texts_dir = os.path.join(
+                os.path.join(self.__context.root, 'XMLFiles'),
+                'Text',
+            )
             for x in os.listdir(texts_dir):
                 text_file = os.path.join(texts_dir, x)
                 if os.path.isfile(text_file):
@@ -636,20 +668,27 @@ class IDSContext(object):
                                     if elem.tag == 'tm':
                                         name = elem.attrib['id']
                                 elif event == 'end':
-                                    if elem.tag == 'tu' and elem.nsmap['lang'] == lang:
+                                    if (
+                                        elem.tag == 'tu'
+                                        and elem.nsmap['lang'] == lang
+                                    ):
                                         self.__texts[name] = elem.text
-                            except KeyError as e:
+                            except KeyError:
                                 print_xml_error("Issue parsing", elem)
                     finally:
                         file.close()
         return self.__texts
 
     def vehicles(self):
-        if self.__vehicles == None:
+        if self.__vehicles is None:
             self.__vehicles = {}
-            vehicle_file = os.path.join(os.path.join(self.__context.root, 'Data'), 'vehicle_2.xml')
+            vehicle_file = os.path.join(
+                os.path.join(self.__context.root, 'Data'),
+                'vehicle_2.xml',
+            )
             if not os.path.isfile(vehicle_file):
-                raise ValueError("vehicle_2.xml file not found %s" % (vehicle_file))
+                msg = "vehicle_2.xml file not found %s" % vehicle_file
+                raise ValueError(msg)
 
             file = open_xml(vehicle_file)
             try:
@@ -664,23 +703,39 @@ class IDSContext(object):
         return self.__vehicles
 
     def modules(self):
-        if self.__modules == None:
+        if self.__modules is None:
             self.__modules = {}
-            mcprw_file = os.path.join(os.path.join(self.__context.root, 'Data'), 'MCPRW_XMLFile.xml')
+            mcprw_file = os.path.join(
+                os.path.join(self.__context.root, 'Data'),
+                'MCPRW_XMLFile.xml',
+            )
             if not os.path.isfile(mcprw_file):
-                raise ValueError("MCPRW_XMLFile.xml file not found %s" % (mcprw_file))
+                msg = "MCPRW_XMLFile.xml file not found %s" % mcprw_file
+                raise ValueError(msg)
 
             file = open_xml(mcprw_file, encoding='utf-8-sig')
             try:
-                for event, elem in iterparse(file, encoding='utf-8', wrapper=True, recover=False):
+                for event, elem in iterparse(
+                    file,
+                    encoding='utf-8',
+                    wrapper=True,
+                    recover=False,
+                ):
                     if event == 'start':
-                        if elem.tag == '{VehicleModuleCorrel_XmlFile/RDS}ModuleDataName':
+                        if (
+                            elem.tag
+                            == '{VehicleModuleCorrel_XmlFile/RDS}ModuleDataName'
+                        ):
                             module = IDSXMLModule.parse(elem)
                             self.__modules[module.id()] = module
-                        elif elem.tag == '{VehicleModuleCorrel_XmlFile/RDS}Vehicle':
+                        elif (
+                            elem.tag == '{VehicleModuleCorrel_XmlFile/RDS}Vehicle'
+                        ):
                             vehicle = IDSXMLVehicle.parse(elem)
                             module.vehicles().append(vehicle)
-                        elif elem.tag == '{VehicleModuleCorrel_XmlFile/RDS}XMLFile':
+                        elif (
+                            elem.tag == '{VehicleModuleCorrel_XmlFile/RDS}XMLFile'
+                        ):
                             f = IDSXMLFile.parse(elem)
                             vehicle.files()[f.id()] = f
 
@@ -691,13 +746,19 @@ class IDSContext(object):
         return self.__modules
 
     def mnemonics(self):
-        if self.__mnemonics == None:
+        if self.__mnemonics is None:
             self.__mnemonics = {}
 
-            mnemonics_file = os.path.join(os.path.join(self.__context.root, 'Data'),
-                                          'Mnemonics_%s.xml' % (self.__context.lang))
+            mnemonics_file = os.path.join(
+                os.path.join(self.__context.root, 'Data'),
+                'Mnemonics_%s.xml' % self.__context.lang,
+            )
             if not os.path.isfile(mnemonics_file):
-                raise ValueError("Mnemonics_%s.xml file not found %s" % (self.__context.lang, mnemonics_file))
+                msg = (
+                    "Mnemonics_%s.xml file not found %s"
+                    % (self.__context.lang, mnemonics_file)
+                )
+                raise ValueError(msg)
 
             file = open_xml(mnemonics_file)
             try:
@@ -984,28 +1045,8 @@ def main(argv):
 
     # cs = ids.vehicles()
     # obj = cs[IDSKey('8394714383', '8394714383')]
-    # cs = ids.load_rec('PROTOCOL_REC')
-    # obj = cs[IDSKey('VISO14229_CMU_HS14229_MAZDAType1', 'VISO14229_CMU_HS14229_MAZDAType1')]
-    # cs = ids.load_rec('VIDQID_DESC_ARRAY')
-    # obj = cs[IDSKey('165012', '165012')]
     cs = ids.load_rec('MCP_FILE_INFO_REC')
     obj = cs[IDSKey('PSR8-188K2-B', 'PSR8-188K2-B')]
-    # cs = ids.load_rec('MODULE_REC')
-    # obj = cs[IDSKey('R_BCM_MS14229_MAZDAType2', 'ST_VMC_9117')]
-    # cs = ids.load_rec('CONVERTER_STATE_REC')
-    # obj = cs[IDSKey('CS_17771', 'CS_17771')]
-    # cs = ids.load_rec('PARAM_REC')
-    # obj = cs[IDSKey('MCP_AutDoorLoc_6G', 'PMV_66378')]
-    # cs = ids.load_rec('PARAM_TYPE_REC')
-    # obj = cs[IDSKey('MCP_AutDoorLoc_L_BLK2B1b47')]
-    # cs = ids.load_rec('MENU_ITEM_REC')
-    # obj = cs[IDSKey('VEHICLE_ID_IDS11398')]
-    # cs = ids.load_rec('DD_PARAM_GROUP_REC')
-    # obj = cs[IDSKey('MCP_R_BCM', 'MCP_R_BCM')]
-    # cs = ids.load_rec('PARAM_ADDR_REC')
-    # obj = cs[IDSKey('PARAM_ADDR8063', 'PARAM_ADDR8063')]
-    # cs = ids.load_rec('PARAM_REC')
-    # obj = cs[IDSKey('MCP_RPA_U387U388', 'PMV_50713')]
     browse(ids, obj)
 
 
